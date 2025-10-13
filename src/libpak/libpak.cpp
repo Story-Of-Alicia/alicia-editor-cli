@@ -194,7 +194,7 @@ void libpak::resource::write()
   this->resource_stream->set_writer_cursor(0);
 
   // Update the content header
-  this->content_header.assets_count = this->assets.size();
+  this->content_header.assets_count = static_cast<uint32_t>(this->assets.size());
 
   // write the content header
   this->resource_stream->set_writer_cursor(PAK_CONTENT_SECTOR);
@@ -221,11 +221,12 @@ void libpak::resource::write()
     throw std::runtime_error("failed to write data header");
 
   // Update the intro PAKS header assets counts
-  this->pak_header.assets_count = this->assets.size();
-  this->pak_header.used_assets_count = this->assets.size();
+  this->pak_header.assets_count = static_cast<uint32_t>(this->assets.size());
+  this->pak_header.used_assets_count = static_cast<uint32_t>(this->assets.size());
   this->pak_header.deleted_assets_count = 0;
 
-  this->pak_header.file_size = this->resource_stream->get_writer_cursor();
+  this->pak_header.file_size = static_cast<uint32_t>(
+    this->resource_stream->get_writer_cursor());
 
   // Write the intro PAKS header
   this->resource_stream->set_writer_cursor(0);
@@ -263,7 +264,7 @@ void libpak::resource::read_asset_data(asset& asset)
   {
     embedded_data.resize(embedded_size);
   }
-  catch (std::bad_alloc& alloc)
+  catch (std::bad_alloc&)
   {
     throw std::runtime_error("not enough memory for embedded buffer");
   }
@@ -290,7 +291,7 @@ void libpak::resource::read_asset_data(asset& asset)
   {
     data.buffer.resize(decompressed_data_size);
   }
-  catch (std::bad_alloc& alloc)
+  catch (std::bad_alloc&)
   {
     throw std::runtime_error("not enough memory for data buffer");
   }
@@ -341,7 +342,8 @@ void libpak::resource::write_asset_data(libpak::asset& asset)
   uLongf embedded_crc{};
   uLongf embedded_checksum{};
 
-  asset.header.embedded_data_offset = resource_stream->get_writer_cursor();
+  asset.header.embedded_data_offset = static_cast<uint32_t>(
+    resource_stream->get_writer_cursor());
 
   if (asset.header.is_data_compressed)
   {

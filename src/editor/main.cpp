@@ -46,10 +46,10 @@ void import_assets(libpak::resource& pak)
       continue;
     }
 
-    wprintf(L"Patching '%ls'\n", asset.header.path);
+    wprintf(L"Patching '%ls'\n", reinterpret_cast<wchar_t*>(asset.header.path));
 
     file.seekg(0, std::ios::end);
-    const auto size = file.tellg();
+    const uint32_t size = static_cast<uint32_t>(file.tellg());
     file.seekg(0);
 
     asset.data.buffer.resize(size);
@@ -75,9 +75,9 @@ void set_all_dev(libpak::resource& pak)
 
 } // anon namespace
 
-int main(int argc, const char** args)
+int main([[maybe_unused]] int argc, [[maybe_unused]] const char** args)
 {
-  libpak::resource pak("res.pak");
+  libpak::resource pak("res.pak.full");
   printf("Reading..\n");
   pak.read(false);
 
