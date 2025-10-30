@@ -1,6 +1,7 @@
 #include <libpak/libpak.hpp>
 
 #include <cstdio>
+#include <iostream>
 #include <ranges>
 #include <filesystem>
 #include <fstream>
@@ -77,17 +78,40 @@ void set_all_dev(libpak::resource& pak)
 
 int main([[maybe_unused]] int argc, [[maybe_unused]] const char** args)
 {
-  libpak::resource pak("res.pak.full");
-  printf("Reading..\n");
-  pak.read(false);
+  printf("File: ");
+  std::string file;
+  std::getline(std::cin, file);
 
-  printf("Importing..\n");
-  import_assets(pak);
+  libpak::resource pak(file);
 
-  printf("Writing..\n");
-  pak.resource_path = "res.pak.prod";
-  pak.write();
+  printf("Action [export, patch]: ");
+  std::string action;
+  std::getline(std::cin, action);
 
-  printf("Done.\n");
+  if (action == "export")
+  {
+    printf("Reading..\n");
+    pak.read(true);
+
+    export_assets(pak);
+    return 0;
+  }
+  else if (action == "patch")
+  {
+    printf("Reading..\n");
+    pak.read(false);
+
+    printf("Importing..\n");
+    import_assets(pak);
+
+    printf("Writing..\n");
+    pak.resource_path = "res.pak.prod";
+    pak.write();
+
+    printf("Done.\n");
+    return 0;
+  }
+
+  printf("No action '%s'\n", action.c_str());
   return 0;
 }
