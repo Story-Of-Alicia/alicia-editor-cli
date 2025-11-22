@@ -84,31 +84,53 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] const char** args)
 
   libpak::resource pak(file);
 
-  printf("Action [export, patch]: ");
+  printf("Action [export, patch, dev]: ");
   std::string action;
   std::getline(std::cin, action);
 
   if (action == "export")
   {
-    printf("Reading..\n");
+    printf("Reading...\n");
     pak.read(true);
 
+    printf("Exporting...\n");
     export_assets(pak);
+
+    printf("You exported the assets to the current working directory.");
     return 0;
   }
-  else if (action == "patch")
+  else if (action == "dev")
   {
     printf("Reading..\n");
     pak.read(false);
 
-    printf("Importing..\n");
+    printf("Patching headers...\n");
+    set_all_dev(pak);
+
+    printf("Writing...");
+    pak.resource_path = "res.pak.dev";
+    pak.write();
+
+    printf("Done.\n");
+    printf("You now have 'res.pak.dev' which points to files in filesystem.\n");
+    printf("To actually use it, rename it tot 'res.pak'.");
+    return 0;
+  }
+  else if (action == "patch")
+  {
+    printf("Reading...\n");
+    pak.read(false);
+
+    printf("Importing...\n");
     import_assets(pak);
 
-    printf("Writing..\n");
+    printf("Writing...\n");
     pak.resource_path = "res.pak.prod";
     pak.write();
 
     printf("Done.\n");
+    printf("You now have 'res.pak.prod' which embeds data.\n");
+    printf("To actually use it, rename it tot 'res.pak'.");
     return 0;
   }
 
