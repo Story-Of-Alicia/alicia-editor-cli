@@ -9,7 +9,7 @@
 namespace
 {
 
-void export_assets(libpak::resource& pak)
+void export_assets(libpak::resource& pak, bool ignoreExisting = true)
 {
   for (const auto& asset : pak.assets | std::views::values)
   {
@@ -17,6 +17,9 @@ void export_assets(libpak::resource& pak)
       continue;
 
     std::filesystem::path asset_path(asset.header.path);
+    if (std::filesystem::exists(asset_path) && ignoreExisting)
+      continue;
+
     std::filesystem::create_directories(
       asset_path.parent_path());
 
@@ -84,7 +87,7 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] const char** args)
 
   libpak::resource pak(file);
 
-  printf("Action [export, patch, dev]: ");
+  printf("Action [export, unpack, repack]: ");
   std::string action;
   std::getline(std::cin, action);
 
@@ -93,16 +96,19 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] const char** args)
     printf("Reading...\n");
     pak.read(true);
 
-    printf("Exporting...\n");
-    export_assets(pak);
+    printf("Exporting (force)...\n");
+    export_assets(pak, false);
 
-    printf("You exported the assets to the current working directory.");
+    printf("You exported the assets to the current working directory.\n");
     return 0;
   }
-  else if (action == "dev")
+  else if (action == "unpack")
   {
-    printf("Reading..\n");
-    pak.read(false);
+    printf("Reading...\n");
+    pak.read(true);
+
+    printf("Exporting...\n");
+    export_assets(pak);
 
     printf("Patching headers...\n");
     set_all_dev(pak);
@@ -113,10 +119,10 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] const char** args)
 
     printf("Done.\n");
     printf("You now have 'res.pak.dev' which points to files in filesystem.\n");
-    printf("To actually use it, rename it tot 'res.pak'.");
+    printf("To actually use it, rename it to 'res.pak'.\n");
     return 0;
   }
-  else if (action == "patch")
+  else if (action == "repack")
   {
     printf("Reading...\n");
     pak.read(false);
@@ -130,7 +136,7 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] const char** args)
 
     printf("Done.\n");
     printf("You now have 'res.pak.prod' which embeds data.\n");
-    printf("To actually use it, rename it tot 'res.pak'.");
+    printf("To actually use it, rename it tot 'res.pak'.\n");
     return 0;
   }
 
