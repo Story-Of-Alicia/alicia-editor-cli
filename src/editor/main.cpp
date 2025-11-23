@@ -77,12 +77,54 @@ void set_all_dev(libpak::resource& pak)
   }
 }
 
-void only_take_town(libpak::resource& pak)
+const std::vector<std::u16string> filter = {
+  // town
+  u"town",
+
+  u"n_ch[tabi][]m_merchant08.dff",
+  u"n_ch[tabi][]m_merchant05.dff",
+  u"n_ch[tabi][]m_merchant06.dff",
+
+  u"ran_w_treefire02.dff",
+  u"ran_w_treefire01.dff",
+
+  u"ran_do01_h_01__2_idle.anm",
+  u"ran_do01_s_01__2_idle.anm",
+
+  u"ran_la02_s_01.anm",
+
+  u"start_gliding.cm",
+  u"r02_r[ceremony]streak_dance_00.anm",
+
+  // maid outfit
+  u"r00_cbt005_00_dif",
+  u"r00_cbt005_00_spc",
+  u"r00_cbt005_00_sss",
+  u"r00_cpt005_00_dif",
+  u"r00_cpt005_00_spc",
+  u"r00_cpt005_00_sss",
+
+  // gm hat
+  u"r00_cht905_00_a",
+  u"r00_cht905_00_dif",
+  u"r00_cht905_00_spc"
+};
+
+void only_take_filer(libpak::resource& pak)
 {
   for (auto assetIter = pak.assets.begin(); assetIter != pak.assets.end();)
   {
     auto& asset = assetIter->second;
-    if (asset.path().find(u"town") != std::u16string::npos)
+
+    bool keep = false;
+    for (const auto& token : filter)
+    {
+      keep = asset.path().find(token) != std::u16string::npos;
+      if (keep)
+        break;
+    }
+
+    if (keep)
     {
       ++assetIter;
     }
@@ -161,7 +203,7 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] const char** args)
     pak.read(true);
 
     printf("Patching headers...\n");
-    only_take_town(pak);
+    only_take_filer(pak);
 
     printf("Writing...");
     pak.resource_path = "res.pak.stripped";
