@@ -77,6 +77,22 @@ void set_all_dev(libpak::resource& pak)
   }
 }
 
+void only_take_town(libpak::resource& pak)
+{
+  for (auto assetIter = pak.assets.begin(); assetIter != pak.assets.end();)
+  {
+    auto& asset = assetIter->second;
+    if (asset.path().find(u"town") != std::u16string::npos)
+    {
+      ++assetIter;
+    }
+    else
+    {
+      assetIter = pak.assets.erase(assetIter);
+    }
+  }
+}
+
 } // anon namespace
 
 int main([[maybe_unused]] int argc, [[maybe_unused]] const char** args)
@@ -87,7 +103,7 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] const char** args)
 
   libpak::resource pak(file);
 
-  printf("Action [export, unpack, repack]: ");
+  printf("Action [export, unpack, repack, strip, merge]: ");
   std::string action;
   std::getline(std::cin, action);
 
@@ -137,6 +153,48 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] const char** args)
     printf("Done.\n");
     printf("You now have 'res.pak.prod' which embeds data.\n");
     printf("To actually use it, rename it tot 'res.pak'.\n");
+    return 0;
+  }
+  else if (action == "strip")
+  {
+    printf("Reading...\n");
+    pak.read(true);
+
+    printf("Patching headers...\n");
+    only_take_town(pak);
+
+    printf("Writing...");
+    pak.resource_path = "res.pak.stripped";
+    pak.write();
+
+    printf("Done.\n");
+    printf("You now have 'res.pak.stripped' with the stripped files.\n");
+    return 0;
+  }
+  else if (action == "merge")
+  {
+    printf("Reading...\n");
+    pak.read(true);
+
+    printf("Other file to merge: ");
+    std::getline(std::cin, file);
+
+    libpak::resource otherPak(file);
+    printf("Reading other pak...\n");
+    otherPak.read(true);
+
+    for (auto& asset : otherPak.assets)
+    {
+      wprintf(L"Merging '%ls'\n", reinterpret_cast<wchar_t*>(asset.second.header.path));
+      pak.assets[asset.second.path()] = std::move(asset.second);
+    }
+
+    printf("Writing...");
+    pak.resource_path = "res.pak.merged";
+    pak.write();
+
+    printf("Done.\n");
+    printf("You now have 'res.pak.merged'.\n");
     return 0;
   }
 
