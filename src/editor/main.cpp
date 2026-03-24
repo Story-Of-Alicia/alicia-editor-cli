@@ -40,7 +40,7 @@ void import_assets(libpak::resource& pak)
 {
   for (auto& asset : pak.assets | std::views::values)
   {
-    if (not asset.header.is_asset_embedded)
+    if (not asset.header.are_asset_data_embedded)
       continue;
 
     std::filesystem::path asset_path(asset.header.path);
@@ -69,7 +69,7 @@ void set_all_dev(libpak::resource& pak)
 {
   for (auto& asset : pak.assets | std::views::values)
   {
-    asset.header.is_asset_embedded = false;
+    asset.header.are_asset_data_embedded = false;
     asset.header.embedded_data_length = 0;
     asset.header.embedded_data_offset = 0;
     asset.header.crc_embedded = 0x0;
@@ -78,36 +78,7 @@ void set_all_dev(libpak::resource& pak)
 }
 
 const std::vector<std::u16string> filter = {
-  // town
-  u"town",
-
-  u"n_ch[tabi][]m_merchant08.dff",
-  u"n_ch[tabi][]m_merchant05.dff",
-  u"n_ch[tabi][]m_merchant06.dff",
-
-  u"ran_w_treefire02.dff",
-  u"ran_w_treefire01.dff",
-
-  u"ran_do01_h_01__2_idle.anm",
-  u"ran_do01_s_01__2_idle.anm",
-
-  u"ran_la02_s_01.anm",
-
-  u"start_gliding.cm",
-  u"r02_r[ceremony]streak_dance_00.anm",
-
-  // maid outfit
-  u"r00_cbt005_00_dif",
-  u"r00_cbt005_00_spc",
-  u"r00_cbt005_00_sss",
-  u"r00_cpt005_00_dif",
-  u"r00_cpt005_00_spc",
-  u"r00_cpt005_00_sss",
-
-  // gm hat
-  u"r00_cht905_00_a",
-  u"r00_cht905_00_dif",
-  u"r00_cht905_00_spc"
+  u"emoticon_agent",
 };
 
 void only_take_filer(libpak::resource& pak)
@@ -135,6 +106,38 @@ void only_take_filer(libpak::resource& pak)
   }
 }
 
+void debug_asset(const libpak::asset& asset)
+{
+    wprintf(L"Asset: %ls\n", reinterpret_cast<const wchar_t*>(asset.header.path));
+    wprintf(L"\t prefix: 0x%X\n", asset.header.prefix);
+    wprintf(L"\t magic: 0x%X\n", asset.header.magic);
+    wprintf(L"\t embedded data offset: 0x%X\n", asset.header.embedded_data_offset);
+    wprintf(L"\t embedded data length: 0x%X\n", asset.header.embedded_data_length);
+    wprintf(L"\t data decompressed length: 0x%X\n", asset.header.data_decompressed_length);
+    wprintf(L"\t are data compressed: %s\n", asset.header.is_data_compressed ? L"yes" : L"no");
+    wprintf(L"\t data decompressed length 0: 0x%X\n", asset.header.data_decompressed_length0);
+    wprintf(L"\t unknown 0: 0x%X\n", asset.header.unknown0);
+    wprintf(L"\t data decompressed length 1: 0x%X\n", asset.header.data_decompressed_length1);
+    wprintf(L"\t timestamp: 0x%X\n", asset.header.timestamp);
+    wprintf(L"\t unknown 2: 0x%X\n", asset.header.path_hash);
+    wprintf(L"\t filename hash: 0x%X\n", asset.header.filename_hash);
+    wprintf(L"\t extension hash: 0x%X\n", asset.header.extension_hash);
+    wprintf(L"\t parent path hash: 0x%X\n", asset.header.parent_path_hash);
+    wprintf(L"\t are data deleted: %s\n", asset.header.is_asset_deleted ? L"yes" : L"no");
+    wprintf(L"\t asset header offset: 0x%X\n", asset.header.header_offset);
+    wprintf(L"\t are asset data embedded: %s\n", asset.header.are_asset_data_embedded  ? L"yes" : L"no");
+    wprintf(L"\t unknown_type_l: 0x%X\n", asset.header.unknown_type_l);
+    wprintf(L"\t unknown_type_h: 0x%X\n", asset.header.unknown_type_h);
+    wprintf(L"\t unknown_value_l: 0x%X\n", asset.header.date_created);
+    wprintf(L"\t unknown_value_h: 0x%X\n", asset.header.time_created);
+    wprintf(L"\t crc decompressed: 0x%X\n", asset.header.crc_decompressed);
+    wprintf(L"\t crc embedded: 0x%X\n", asset.header.crc_embedded);
+    wprintf(L"\t crc identity: 0x%X\n", asset.header.crc_identity);
+    wprintf(L"\t checksum decompressed: 0x%X\n", asset.header.checksum_decompressed);
+    wprintf(L"\t checksum embedded: 0x%X\n", asset.header.checksum_embedded);
+    wprintf(L"\t unknown 6: 0x%X\n", asset.header.unknown6);
+}
+
 } // anon namespace
 
 int main([[maybe_unused]] int argc, [[maybe_unused]] const char** args)
@@ -145,10 +148,23 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] const char** args)
 
   libpak::resource pak(file);
 
-  printf("Action [export, unpack, repack, strip, merge]: ");
+  printf("Action [info, export, unpack, repack, strip, merge]: ");
   std::string action;
   std::getline(std::cin, action);
 
+  if (action == "info")
+  {
+    printf("Reading...\n");
+    pak.read(false);
+
+    for (const auto& asset : pak.assets | std::views::values)
+    {
+      debug_asset(asset);
+    }
+
+    printf("You exported the assets to the current working directory.\n");
+    return 0;
+  }
   if (action == "export")
   {
     printf("Reading...\n");
