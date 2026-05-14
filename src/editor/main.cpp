@@ -40,13 +40,23 @@ void import_assets(libpak::resource& pak)
 {
   for (auto& asset : pak.assets | std::views::values)
   {
-    if (not asset.header.are_asset_data_embedded)
-      continue;
-
     std::filesystem::path asset_path(asset.header.path);
+
+    const bool isExecutable = asset_path.extension() == ".exe";
+    const bool isLibrary = asset_path.extension() == ".dll";
+    const bool isMovie = asset_path.extension() == ".avi";
+    const bool isAuxiliary = asset_path.extension() == ".txt"
+      || asset_path.extension() == ".ini";
+
+    if (not isExecutable && not isLibrary && not isMovie && not isAuxiliary)
+    {
+      asset.header.are_data_embedded = 1;
+    }
+
     std::ifstream file(asset_path, std::ios::binary);
     if (!file.is_open())
     {
+      wprintf(L"Asset '%ls' is missing it's data file\n", reinterpret_cast<wchar_t*>(asset.header.path));
       continue;
     }
 
@@ -69,7 +79,7 @@ void set_all_dev(libpak::resource& pak)
 {
   for (auto& asset : pak.assets | std::views::values)
   {
-    asset.header.are_asset_data_embedded = false;
+    asset.header.are_data_embedded = false;
     asset.header.embedded_data_length = 0;
     asset.header.embedded_data_offset = 0;
     asset.header.crc_embedded = 0x0;
@@ -110,22 +120,22 @@ void debug_asset(const libpak::asset& asset)
 {
     wprintf(L"Asset: %ls\n", reinterpret_cast<const wchar_t*>(asset.header.path));
     wprintf(L"\t prefix: 0x%X\n", asset.header.prefix);
-    wprintf(L"\t magic: 0x%X\n", asset.header.magic);
+    wprintf(L"\t path length: 0x%X\n", asset.header.path_length);
     wprintf(L"\t embedded data offset: 0x%X\n", asset.header.embedded_data_offset);
     wprintf(L"\t embedded data length: 0x%X\n", asset.header.embedded_data_length);
     wprintf(L"\t data decompressed length: 0x%X\n", asset.header.data_decompressed_length);
-    wprintf(L"\t are data compressed: %s\n", asset.header.is_data_compressed ? L"yes" : L"no");
+    wprintf(L"\t are data compressed: %s\n", asset.header.are_data_compressed ? L"yes" : L"no");
     wprintf(L"\t data decompressed length 0: 0x%X\n", asset.header.data_decompressed_length0);
     wprintf(L"\t unknown 0: 0x%X\n", asset.header.unknown0);
     wprintf(L"\t data decompressed length 1: 0x%X\n", asset.header.data_decompressed_length1);
     wprintf(L"\t timestamp: 0x%X\n", asset.header.timestamp);
-    wprintf(L"\t unknown 2: 0x%X\n", asset.header.path_hash);
+    wprintf(L"\t path hash: 0x%X\n", asset.header.path_hash);
     wprintf(L"\t filename hash: 0x%X\n", asset.header.filename_hash);
     wprintf(L"\t extension hash: 0x%X\n", asset.header.extension_hash);
     wprintf(L"\t parent path hash: 0x%X\n", asset.header.parent_path_hash);
     wprintf(L"\t are data deleted: %s\n", asset.header.is_asset_deleted ? L"yes" : L"no");
     wprintf(L"\t asset header offset: 0x%X\n", asset.header.header_offset);
-    wprintf(L"\t are asset data embedded: %s\n", asset.header.are_asset_data_embedded  ? L"yes" : L"no");
+    wprintf(L"\t are asset data embedded: %s\n", asset.header.are_data_embedded  ? L"yes" : L"no");
     wprintf(L"\t unknown_type_l: 0x%X\n", asset.header.unknown_type_l);
     wprintf(L"\t unknown_type_h: 0x%X\n", asset.header.unknown_type_h);
     wprintf(L"\t unknown_value_l: 0x%X\n", asset.header.date_created);
@@ -170,7 +180,7 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] const char** args)
     printf("Reading...\n");
     pak.read(true);
 
-    printf("Exporting (force)...\n");
+    printf("Exporting...\n");
     export_assets(pak, false);
 
     printf("You exported the assets to the current working directory.\n");
@@ -188,11 +198,11 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] const char** args)
     set_all_dev(pak);
 
     printf("Writing...");
-    pak.resource_path = "res.pak.dev";
+    pak.resource_path += ".dev";
     pak.write();
 
     printf("Done.\n");
-    printf("You now have 'res.pak.dev' which points to files in filesystem.\n");
+    printf("You now have '%s' which is unpacked.\n", pak.resource_path.c_str());
     printf("To actually use it, rename it to 'res.pak'.\n");
     return 0;
   }
@@ -205,12 +215,12 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] const char** args)
     import_assets(pak);
 
     printf("Writing...\n");
-    pak.resource_path = "res.pak.prod";
+    pak.resource_path += ".packed";
     pak.write();
 
     printf("Done.\n");
-    printf("You now have 'res.pak.prod' which embeds data.\n");
-    printf("To actually use it, rename it tot 'res.pak'.\n");
+    printf("You now have '%s' which is packed.\n", pak.resource_path.c_str());
+    printf("To actually use it, rename it to 'res.pak'.\n");
     return 0;
   }
   else if (action == "strip")
@@ -226,7 +236,8 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] const char** args)
     pak.write();
 
     printf("Done.\n");
-    printf("You now have 'res.pak.stripped' with the stripped files.\n");
+    printf("You now have '%s' which is stripped of certain assets.\n", pak.resource_path.c_str());
+    printf("To actually use it, rename it to 'res.pak'.\n");
     return 0;
   }
   else if (action == "merge")
@@ -252,7 +263,8 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] const char** args)
     pak.write();
 
     printf("Done.\n");
-    printf("You now have 'res.pak.merged'.\n");
+    printf("You now have '%s' which is a result of a merge.\n", pak.resource_path.c_str());
+    printf("To actually use it, rename it to 'res.pak'.\n");
     return 0;
   }
 
