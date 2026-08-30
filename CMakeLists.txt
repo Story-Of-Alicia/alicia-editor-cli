@@ -1,6 +1,11 @@
 cmake_minimum_required(VERSION 3.27)
 project(alicia-editor-cli)
 
+# Statically link the MSVC C++ runtime (/MT) so the resulting .exe runs on a
+# clean Windows machine without the Visual C++ Redistributable installed.
+# Applies to all targets below, including the libpak / zlib subprojects.
+set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+
 add_subdirectory(3rd-party)
 
 add_library(project_properties
