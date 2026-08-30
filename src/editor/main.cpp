@@ -123,13 +123,16 @@ void only_take_filer(libpak::resource& pak)
 
 void patch_sizes(libpak::resource& pak)
 {
-  std::fstream resource_file(
+  pak.output_stream = std::make_shared<std::ofstream>(
     pak.resource_path, std::ios::binary | std::ios::in | std::ios::out);
-  if (!resource_file.is_open())
+  if (!pak.output_stream->is_open())
   {
     printf("Couldn't open '%s' for patching\n", pak.resource_path.c_str());
     return;
   }
+
+  pak.resource_stream = std::make_shared<libpak::stream>(
+    pak.input_stream, pak.output_stream);
 
   uint32_t patched = 0;
   uint32_t unchanged = 0;
@@ -142,8 +145,7 @@ void patch_sizes(libpak::resource& pak)
 
     if (asset.header.are_data_embedded)
     {
-      if (embedded < 8)
-        wprintf(L"Asset '%ls' still has embedded data, skipping\n", reinterpret_cast<wchar_t*>(asset.header.path));
+      wprintf(L"Asset '%ls' still has embedded data, skipping\n", reinterpret_cast<wchar_t*>(asset.header.path));
       ++embedded;
       continue;
     }
@@ -152,7 +154,7 @@ void patch_sizes(libpak::resource& pak)
     const auto file_size = std::filesystem::file_size(asset_path, error);
     if (error)
     {
-      wprintf(L"Asset '%ls' is missing it's data file\n", reinterpret_cast<wchar_t*>(asset.header.path));
+      wprintf(L"Asset '%ls' is missing its data file\n", reinterpret_cast<wchar_t*>(asset.header.path));
       ++skipped;
       continue;
     }
@@ -166,20 +168,6 @@ void patch_sizes(libpak::resource& pak)
       continue;
     }
 
-    // The header offset comes from the resource itself. Verify that it really
-    // points at this asset's header before overwriting anything there.
-    libpak::asset_header on_disk{};
-    resource_file.seekg(asset.header.header_offset, std::ios::beg);
-    resource_file.read(reinterpret_cast<char*>(&on_disk), sizeof on_disk);
-    if (!resource_file
-      || std::u16string(on_disk.path) != std::u16string(asset.header.path))
-    {
-      wprintf(L"Asset '%ls' has a bogus header offset, skipping\n", reinterpret_cast<wchar_t*>(asset.header.path));
-      resource_file.clear();
-      ++skipped;
-      continue;
-    }
-
     wprintf(
       L"Patching '%ls' 0x%X -> 0x%X\n",
       reinterpret_cast<wchar_t*>(asset.header.path),
@@ -190,19 +178,13 @@ void patch_sizes(libpak::resource& pak)
     asset.header.data_decompressed_length0 = size;
     asset.header.data_decompressed_length1 = size;
 
-    resource_file.seekp(asset.header.header_offset, std::ios::beg);
-    resource_file.write(
-      reinterpret_cast<const char*>(&asset.header), sizeof asset.header);
-    if (!resource_file)
-    {
-      printf("Couldn't write the asset header\n");
-      return;
-    }
+    pak.resource_stream->set_writer_cursor(asset.header.header_offset);
+    pak.write_asset_header(asset);
 
     ++patched;
   }
 
-  resource_file.flush();
+  pak.output_stream->flush();
   printf(
     "%u patched, %u unchanged, %u skipped, %u still embedded\n",
     patched, unchanged, skipped, embedded);
