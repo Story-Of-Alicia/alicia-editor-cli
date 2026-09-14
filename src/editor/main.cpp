@@ -5,6 +5,8 @@
 #include <ranges>
 #include <filesystem>
 #include <fstream>
+#include <exception>
+#include <system_error>
 
 namespace
 {
@@ -48,16 +50,19 @@ void import_assets(libpak::resource& pak)
     const bool isAuxiliary = asset_path.extension() == ".txt"
       || asset_path.extension() == ".ini";
 
-    if (not isExecutable && not isLibrary && not isMovie && not isAuxiliary)
-    {
-      asset.header.are_data_embedded = 1;
-    }
-
     std::ifstream file(asset_path, std::ios::binary);
     if (!file.is_open())
     {
+      // Leave the header untouched. Marking an asset as embedded here without
+      // supplying data produces a header that claims embedded+compressed data
+      // of length 0, which makes the next read fail to inflate it.
       wprintf(L"Asset '%ls' is missing it's data file\n", reinterpret_cast<wchar_t*>(asset.header.path));
       continue;
+    }
+
+    if (not isExecutable && not isLibrary && not isMovie && not isAuxiliary)
+    {
+      asset.header.are_data_embedded = 1;
     }
 
     wprintf(L"Patching '%ls'\n", reinterpret_cast<wchar_t*>(asset.header.path));
@@ -116,6 +121,78 @@ void only_take_filer(libpak::resource& pak)
   }
 }
 
+void patch_sizes(libpak::resource& pak)
+{
+  pak.output_stream = std::make_shared<std::ofstream>(
+    pak.resource_path, std::ios::binary | std::ios::in | std::ios::out);
+  if (!pak.output_stream->is_open())
+  {
+    printf("Couldn't open '%s' for patching\n", pak.resource_path.c_str());
+    return;
+  }
+
+  pak.resource_stream = std::make_shared<libpak::stream>(
+    pak.input_stream, pak.output_stream);
+
+  uint32_t patched = 0;
+  uint32_t unchanged = 0;
+  uint32_t skipped = 0;
+  uint32_t embedded = 0;
+
+  for (auto& asset : pak.assets | std::views::values)
+  {
+    const std::filesystem::path asset_path(asset.header.path);
+
+    if (asset.header.are_data_embedded)
+    {
+      wprintf(L"Asset '%ls' still has embedded data, skipping\n", reinterpret_cast<wchar_t*>(asset.header.path));
+      ++embedded;
+      continue;
+    }
+
+    std::error_code error;
+    const auto file_size = std::filesystem::file_size(asset_path, error);
+    if (error)
+    {
+      wprintf(L"Asset '%ls' is missing its data file\n", reinterpret_cast<wchar_t*>(asset.header.path));
+      ++skipped;
+      continue;
+    }
+
+    const auto size = static_cast<uint32_t>(file_size);
+    if (size == asset.header.data_decompressed_length
+      && size == asset.header.data_decompressed_length0
+      && size == asset.header.data_decompressed_length1)
+    {
+      ++unchanged;
+      continue;
+    }
+
+    wprintf(
+      L"Patching '%ls' 0x%X -> 0x%X\n",
+      reinterpret_cast<wchar_t*>(asset.header.path),
+      asset.header.data_decompressed_length,
+      size);
+
+    asset.header.data_decompressed_length = size;
+    asset.header.data_decompressed_length0 = size;
+    asset.header.data_decompressed_length1 = size;
+
+    pak.resource_stream->set_writer_cursor(asset.header.header_offset);
+    pak.write_asset_header(asset);
+
+    ++patched;
+  }
+
+  pak.output_stream->flush();
+  printf(
+    "%u patched, %u unchanged, %u skipped, %u still embedded\n",
+    patched, unchanged, skipped, embedded);
+
+  if (embedded != 0)
+    printf("Assets whose data is still embedded were left alone, use 'repack' for those.\n");
+}
+
 void debug_asset(const libpak::asset& asset)
 {
     wprintf(L"Asset: %ls\n", reinterpret_cast<const wchar_t*>(asset.header.path));
@@ -150,7 +227,7 @@ void debug_asset(const libpak::asset& asset)
 
 } // anon namespace
 
-int main([[maybe_unused]] int argc, [[maybe_unused]] const char** args)
+int run()
 {
   printf("File: ");
   std::string file;
@@ -158,7 +235,7 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] const char** args)
 
   libpak::resource pak(file);
 
-  printf("Action [info, export, unpack, repack, strip, merge]: ");
+  printf("Action [info, export, unpack, repack, reload, strip, merge]: ");
   std::string action;
   std::getline(std::cin, action);
 
@@ -223,6 +300,17 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] const char** args)
     printf("To actually use it, rename it to 'res.pak'.\n");
     return 0;
   }
+  else if (action == "reload")
+  {
+    printf("Reading...\n");
+    pak.read(false);
+
+    printf("Checking sizes...\n");
+    patch_sizes(pak);
+
+    printf("Done.\n");
+    return 0;
+  }
   else if (action == "strip")
   {
     printf("Reading...\n");
@@ -270,4 +358,24 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] const char** args)
 
   printf("No action '%s'\n", action.c_str());
   return 0;
+}
+
+int main([[maybe_unused]] int argc, [[maybe_unused]] const char** args)
+{
+  try
+  {
+    return run();
+  }
+  catch (const std::exception& e)
+  {
+    fflush(stdout);
+    fprintf(stderr, "\nError: %s\n", e.what());
+    return 1;
+  }
+  catch (...)
+  {
+    fflush(stdout);
+    fprintf(stderr, "\nError: unknown failure\n");
+    return 1;
+  }
 }
